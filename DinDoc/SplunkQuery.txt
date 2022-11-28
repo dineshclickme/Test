@@ -1,0 +1,128 @@
+In Query:
+index=mulesoft (host=plccasmule*) source="/app/logs/nge/splunk/nge-us*"  | dedup _raw | eval PayloadURL="http://"+host+":28001/nge/payloads/"+'contextMap.payload'|where in('contextMap.transactionId',"EST") | table  _time source PayloadURL message loggerName contextMap.application_id contextMap.methodname contextMap.transactionId
+
+Plaintext search:
+index=mulesoft (host=plccasmule*) source="/app/logs/nge/splunk/nge-us*" "*updateLimitDetails_USD*" | dedup _raw | eval PayloadURL="http://"+host+":28001/nge/payloads/"+'contextMap.payload' | table  _time source PayloadURL message loggerName contextMap.application_id contextMap.methodname contextMap.transactionId
+
+UniqueRequest by http status: 
+index=mulesoft (host=plccasmule*) source="/app/logs/nge/splunk/nge-us-mf*" | dedup _raw | eval PayloadURL="http://"+host+":28001/nge/payloads/"+'contextMap.payload'| rename contextMap.timeStamp as "TxTimestamp" contextMap.keyInfo.callstringrequest as "CallStringRequest" contextMap.keyInfo.callstring as "CallStringResponse" contextMap.auditEventElapsedTime as "TimeTaken" contextMap.muleProp.outbound.http.status
+as "HTTPStatus" | eval callstringmv=CallStringRequest | makemv delim="~" allowempty=true callstringmv | eval submissionNo=mvindex(callstringmv, 6),user=mvindex(callstringmv, 33),policy=mvindex(callstringmv, 78)| where isnotnull(PayloadURL)  |where HTTPStatus  = 500 |  table  _time submissionNo user policy TimeTaken  CallStringRequest CallStringResponse PayloadURL contextMap.transactionId
+
+index=mulesoft (host=plccasmule*) source="/app/logs/nge/splunk/nge-us-mf*" | dedup _raw | rename contextMap.timeStamp as "TxTimestamp" contextMap.keyInfo.callstringrequest as "CallStringRequest" contextMap.keyInfo.callstring as "CallStringResponse" contextMap.auditEventElapsedTime as "TimeTaken"  contextMap.application as "MULE component Name" eventTimestamp as "Request Failed Time"| eval Payload="http://"+host+":28001/nge/payloads/"+'contextMap.payload'| eval callstringmv=CallStringRequest |eval TimeTakenInSec=TimeTaken/1000 | makemv delim="~" allowempty=true callstringmv | eval submissionNo=mvindex(callstringmv, 6),userId=mvindex(callstringmv, 33),ApplicationID=mvindex(callstringmv, 3)| where isnotnull(Payload) |where 299999 < TimeTaken |rename submissionNo as "Submission No" ApplicationID as "Application ID" userId as "User ID" TimeTakenInSec as "Elapsed Time(Sec)" CallStringRequest as "Request" CallStringResponse as "Response" contextMap.transactionId as "MULE transactionid" contextMap.muleProp.outbound.http.status as "HTTP status"| table "Request Failed Time" "MULE component Name" "Submission No" "Application ID" "User ID" "Elapsed Time(Sec)" Request Response "MULE transactionid" Payload  "HTTP status"
+
+
+index=mulesoft (host=plccasmule*) source="/app/logs/nge/splunk/*" 793c8574-f856-488e-a830-e3c2823f1081 | dedup _raw |eval PayloadURL="http://"+host+":28001/nge/payloads/"+'contextMap.payload'|eval soapHeader=case(
+isnotnull('contextMap.muleProp.inbound.soap.TransactionManagementResponseHeader'), 'contextMap.muleProp.inbound.soap.TransactionManagementResponseHeader',
+isnotnull('contextMap.muleProp.inbound.soap.TransactionManagementRequestHeader'), 'contextMap.muleProp.inbound.soap.TransactionManagementRequestHeader',
+isnotnull('contextMap.muleProp.inbound.soap.policyRequestHeader'), 'contextMap.muleProp.inbound.soap.policyRequestHeader',
+isnotnull('contextMap.muleProp.inbound.soap.policyresponseheader'), 'contextMap.muleProp.inbound.soap.policyresponseheader',
+isnotnull('contextMap.muleProp.outbound.soap.ProductManagementRequestHeader'), 'contextMap.muleProp.outbound.soap.ProductManagementRequestHeader',
+isnotnull('contextMap.muleProp.inbound.soap.ProductManagementRequestHeader'), 'contextMap.muleProp.inbound.soap.ProductManagementRequestHeader'
+)|table eventTimestamp source soapHeader PayloadURL message contextMap.rootMuleMessageId |sort - eventTimestamp
+
+
+
+|where 299999 < TimeTaken
+
+
+API alerts:
+index=mulesoft (host=plccasmule*) source="/app/logs/nge/splunk/nge-us-mf*" ("contextMap.auditObject"=MAINFLOW  OR "contextMap.auditObject"=ERRORFLOW)| dedup _raw | rename contextMap.timeStamp as "TxTimestamp" contextMap.keyInfo.callstringrequest as "CallStringRequest" contextMap.keyInfo.callstring as "CallStringResponse" contextMap.auditEventElapsedTime as "TimeTaken"  contextMap.application as "MULE component Name" eventTimestamp as "Request Failed Time"| eval Payload="http://"+host+":28001/nge/payloads/"+'contextMap.payload'| eval callstringmv=CallStringRequest |eval TimeTakenInSec=TimeTaken/1000 | makemv delim="~" allowempty=true callstringmv | eval submissionNo=mvindex(callstringmv, 6),userId=mvindex(callstringmv, 33),ApplicationID=mvindex(callstringmv, 3)|where 299999 < TimeTaken |rename submissionNo as "Submission No" ApplicationID as "Application ID" F as "User ID" TimeTakenInSec as "Elapsed Time(Sec)" CallStringRequest as "Request" CallStringResponse as "Response" contextMap.transactionId as "MULE transactionid" contextMap.muleProp.outbound.http.status as "HTTP status"| table "Request Failed Time" "MULE component Name" "Submission No" "Application ID" "User ID" "Elapsed Time(Sec)" Request Response "MULE transactionid" Payload  "HTTP status"
+
+xml
+
+index=mulesoft (host=plccasmule*) source="/app/logs/nge/splunk/nge-us-xml*" ("contextMap.auditObject"=MAINFLOW  OR "contextMap.auditObject"=ERRORFLOW)| dedup _raw | rename contextMap.timeStamp as "TxTimestamp" contextMap.keyInfo.application_id as "Application ID" contextMap.keyInfo.methodname  as "Method Name" contextMap.keyInfo.submissionno as "Submission No"  contextMap.keyInfo.user_id as "User ID" contextMap.auditEventElapsedTime as "TimeTaken"  contextMap.application as "MULE component Name" eventTimestamp as "Request Failed Time"| eval Payload="http://"+host+":28001/nge/payloads/"+'contextMap.payload' |eval TimeTakenInSec=TimeTaken/1000 |where 299999 < TimeTaken |rename  TimeTakenInSec as "Elapsed Time(Sec)"  contextMap.transactionId as "MULE transactionid" contextMap.muleProp.outbound.http.status as "HTTP status"| table  "Request Failed Time" "MULE component Name" "Method Name" "Submission No" "Application ID" "User ID" "Elapsed Time(Sec)" "MULE transactionid" Payload  "HTTP status"
+
+
+
+
+
+
+Others:
+
+
+(index=web_technology OR index=mulesoft) host=plawasoc303600a* OR host=plawasoc303600b* OR host=plawasoc303600c* OR host=plawasoc303600d* source="*oh-nam-algl-claims-segmentation*" "contextMap.auditObject"=MAINFLOW ("contextMap.auditEvent"=FAILED) | eval PayloadURL="http://"+host+":28001/"+substr(muleHome,14, len(muleHome)-17)+"/payloads/"+'contextMap.payload' | rename contextMap.application as "Application Name" contextMap.auditObject as "Audit Object" contextMap.auditEvent as "Audit Event" contextMap.keyInfo.PolicyNumber as "Policy Number" contextMap.keyInfo.ClaimNumber as "Claim Number" contextMap.keyInfo.ClaimNumberID as "Claim Number ID" contextMap.keyInfo.Country as "Country" contextMap.keyInfo.LineOfBusiness as "Line Of Business" contextMap.keyInfo.SubLineOfBusiness as "SubLine Of Business" contextMap.timeStamp as "Mule Timestamp" contextMap.transactionId as "Transaction ID" contextMap.auditEventElapsedTime as "Elapsed Time" PayloadURL as "Payload URL" avg(contextMap.auditEventElapsedTime) AS "Average response time" | table "Mule Timestamp" "Transaction ID" "Application Name" "Audit Object" "Audit Event" "Elapsed Time" "Payload URL" | sort "Mule Timestamp" "Transaction ID" desc
+
+sourcetype="web_ping" `website_monitoring_search_index` tag!="exclude_from_alerts" (`response_codes_to_alert_on` OR timed_out=True OR total_time>`response_time_threshold` OR response_code="" OR has_expected_string="false") 
+| fillnull value="" has_expected_string 
+| stats count as count max(total_time) as max_total_time by title url response_code has_expected_string 
+| lookup http_response_codes.csv response_code OUTPUT description 
+| eval description=response_code." (".description.")" 
+| eval description=if(timed_out == "True", "Connection timed out", description) 
+| eval description=if(response_code == "", "Connection failed", description) 
+| eval description=if(has_expected_string == "false", "Content doesn't match", description) 
+| eval max_total_time=round(max_total_time, 2)." ms" 
+| fields - has_expected_string
+
+
+sourcetype=wineventlog:security EventCode=636 OR EventCode=4732 (Group_Name="Account Operators" OR Group_Name="Administrators" OR Group_Name="ADVISOR_Local_Admin" OR Group_Name="AIGDC-Config" OR Group_Name="AIGT_DIST_SUPP_INTEL" OR Group_Name="Backup Admins" OR Group_Name="Backup Operators" OR Group_Name="Canadmins" OR Group_Name="Cert Publishers" OR Group_Name="DHCP Admins" OR Group_Name="Distributed COM Users" OR Group_Name="DnsAdmins" OR Group_Name="DnsUpdateProxy" OR Group_Name="Domain Admins" OR Group_Name="Enterprise Admins" OR Group_Name="ESC_ENGINEERS" OR Group_Name="ESC_TECH" OR Group_Name="Event Log Readers" OR Group_Name="Exchange Admin" OR Group_Name="Exchange Administrators (Full Control)" OR Group_Name="FtWorth_ServiceDesk" OR Group_Name="Group Policy Creators Owners" OR Group_Name="Incoming Forest Trust Builders" OR Group_Name="Information Security" OR Group_Name="Network Configuration Operators" OR Group_Name="Ops_Backup_Monitors" OR Group_Name="Performance Log Users" OR Group_Name="Performance Monitor Users" OR Group_Name="Power Users" OR Group_Name="Print Operators" OR Group_Name="PROD_DocuCorp_Admins" OR Group_Name="PROD_Service_Accts" OR Group_Name="prv*" OR Group_Name="RAS and IAS Servers" OR Group_Name="RC DameWare Admin" OR Group_Name="RC DameWare HelpDesk" OR Group_Name="Regional Admins" OR Group_Name="Remote Management Users" OR Group_Name="Replicator" OR Group_Name="Schema Admins" OR Group_Name="Server Operators" OR Group_Name="Site Admins" OR Group_Name="SQL_Admins_Claims" OR Group_Name="SQL_Admins_DBG" OR Group_Name="SQL_Service_Accts" OR Group_Name="SQLAdmins" OR Group_Name="Storage_OpenSystems" OR Group_Name="SysMgmt" OR Group_Name="Unisys_Desktop" OR Group_Name="VALIC_Local_Admin" OR Group_Name="WinRMRemoteWMIUsers_") OR (Group_Name="IIS_IUSRS" host="*dc*") Account_Domain!="q*-core" Account_Domain!="R6-CORE" 
+| search NOT 
+    [| inputlookup ITSRC_SIEM-HIDS_Alerts_Username_Filter.csv] 
+| search NOT 
+    [| inputlookup ITSRC_EnCase_eDiscovery_Appliance_Exception.csv] Account_Name!="*$" 
+| lookup itdl_assets SRVR_NAME AS host 
+| search SRVR_ENV=*Production* 
+| rex "Member:[\r\n]\s+Security\sID:\t\t(?P<modifieduser>.+)" 
+| eval Message=replace(Message,",","") 
+| table _time, host, EventCode, user, src_user, Account_Name, Account_Domain, Group_Name, modifieduser, name, SRVR_ROLE, LIFE_CYCLE_STATUS, Message, _raw 
+| sort - _time
+
+
+
+
+
+index=mulesoft (host=plccasmule*)  source="*4b63c790-7ee5-4337-8bc7-88ff244fbcd0*" "*Options=\"B\"*" "*<getSubmission>*" "*<ProductStatusCd>K</ProductStatusCd>*"
+index=mulesoft (host=plccasmule*)  source="*AMFC.log" "*Options=\"B\"*" "*<getSubmission>*" "*<ProductStatusCd>B</ProductStatusCd>*"
+
+
+
+
+index=mulesoft OR index="web_technology" (host=plccasmule*) source="/app/logs/nge/nge-us-xml*" "contextMap.keyInfo.methodname"=*getSubmission* 
+| rename _time as Date 
+| eval Date=strftime(Date,"%Y-%m-%d") | stats count by Date
+
+
+uw-estart-ccs-1743-prod
+
+Alert Splunk query:
+
+index = "general_insurance" source="uw-alertservice-1707-prod" line="App ID:*" | eval callstringmv=line | makemv delim=":" allowempty=true callstringmv | eval csAppID=mvindex(callstringmv, 1), csMethod=mvindex(callstringmv, 2), csCallString=mvindex(callstringmv, 3),  csUserID=mvindex(callstringmv, 4), csSubmission=mvindex(callstringmv, 6) | eval AppIDSplit=csAppID |  makemv delim=";" allowempty=true AppIDSplit | eval AppID=mvindex(AppIDSplit, 0) | makemv delim=";" allowempty=true csMethod | eval Method=mvindex(csMethod, 0) | table _time Method AppID csCallString | sort _time
+
+	
+
+
+Internal service:
+index="general_insurance" host="livlpscimw82*" sourcetype=log4j source="/opt/logs/was85/ng_estart_svc/prod/app_log/nge_acc_svc.log" 
+| eval host=lower(host)
+| eval hash=sha256(_raw) 
+| stats values(host) as hosts first(_raw) as first_event last(_raw) as last_event count by hash
+| search count>1
+| fields count hosts hash first_event last_event
+| sort –count
+
+
+Service call XML & MF count :
+index=mulesoft_nge (host=plccasmule*) (source="/app/logs/nge/splunk/nge-us-XML*" OR source="/app/logs/nge/splunk/nge-us-MF*")   ("contextMap.auditObject"=MAINFLOW  OR "contextMap.auditObject"=ERRORFLOW) | dedup _raw | where isnotnull('contextMap.transactionId') | spath "contextMap.auditEvent" | search "contextMap.auditEvent"=STARTED | eval callstringmv='contextMap.keyInfo.callstringrequest' | makemv delim="~" allowempty=true callstringmv | eval methodNMC=mvindex(callstringmv, 1) ,ApplicationID=mvindex(callstringmv, 3) | rename _time as Date   | eval Date=strftime(Date,"%Y-%m-%d") | eval method=case( isnotnull('methodNMC'),'methodNMC',isnotnull('contextMap.keyInfo.methodname'),'contextMap.keyInfo.methodname')  | eval appId=case( isnotnull('ApplicationID'),'ApplicationID',isnotnull('contextMap.keyInfo.application_id'),'contextMap.keyInfo.application_id') | stats  count by  Date 
+
+
+
+
+
+
+
+
+
+
+Hip 10:
+index=mulesoft "nge-submission-data-sys-api-v1-dev" | spath input=log| search  "REQUEST_8427642617610581901_676E7DC-0158-4000-E000-6EC00AAFD366"
+
+index=mulesoft sourcetype=mulesoft_rtf "kubernetes.container_name"=app "kubernetes.labels.app"="nge-submission-data-sys-api-v1-dev"|spath input=log
+
+Prod
+index=mulesoft sourcetype=mulesoft_rtf "kubernetes.container_name"=app "kubernetes.labels.app"="nge-submission-mgmt-sys-api-v1"|spath input=log
+
+
+Alert HIP2:
+
+(index=web_technology OR index=mulesoft_np)  source="*nge-alert-exp-api*" muleEnv=modl
+
+index=mulesoft_nge (host=plccasmule*) (source="/app/logs/nge/splunk/nge-us-XML*" OR source="/app/logs/nge/splunk/nge-us-MF*")   ("contextMap.auditObject"=MAINFLOW  OR "contextMap.auditObject"=ERRORFLOW) | dedup _raw | where isnotnull('contextMap.transactionId') | spath "contextMap.auditEvent" | search "contextMap.auditEvent"=COMPLETED | eval callstringmv='contextMap.keyInfo.callstringrequest' | makemv delim="~" allowempty=true callstringmv | eval methodNMC=mvindex(callstringmv, 1) ,ApplicationID=mvindex(callstringmv, 3) | rename _time as Date   | eval Date=strftime(Date,"%Y-%m-%d") | eval method=case( isnotnull('methodNMC'),'methodNMC',isnotnull('contextMap.keyInfo.methodname'),'contextMap.keyInfo.methodname')  | search method!=getSubmission | eval appId=case( isnotnull('ApplicationID'),'ApplicationID',isnotnull('contextMap.keyInfo.application_id'),'contextMap.keyInfo.application_id')        | table  eventTimestamp source PayloadURL message method contextMap.application_id contextMap.methodname contextMap.transactionId        | sort  -eventTimestamp
